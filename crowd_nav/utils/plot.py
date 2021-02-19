@@ -22,7 +22,7 @@ def main():
     args = parser.parse_args()
 
     # define the names of the models you want to plot and the longest episodes you want to show
-    models = ['SARL']
+    models = ['SARL', 'SCR', 'LSTM_RL']
     max_episodes = 10000
 
     ax1 = ax2 = ax3 = ax4 = None
@@ -35,9 +35,10 @@ def main():
         with open(log_file, 'r') as file:
             log = file.read()
 
-        val_pattern = r"VAL   in episode (?P<episode>\d+) has success rate: (?P<sr>[0-1].\d+), " \
+        # r"nav length: (?P<length>[-+]?\d+.\d+), " \
+                      
+        val_pattern = r"TEST   in episode (?P<episode>\d+) has success rate: (?P<sr>[0-1].\d+), " \
                       r"collision rate: (?P<cr>[0-1].\d+), nav time: (?P<time>\d+.\d+), " \
-                      r"nav length: (?P<length>[-+]?\d+.\d+), " \
                       r"total reward: (?P<reward>[-+]?\d+.\d+)"
         val_episode = []
         val_sr = []
@@ -49,11 +50,12 @@ def main():
             val_sr.append(float(r[1]))
             val_cr.append(float(r[2]))
             val_time.append(float(r[3]))
-            val_reward.append(float(r[5]))
+            val_reward.append(float(r[4]))
 
+        # r"nav length: (?P<length>[-+]?\d+.\d+), " \
+                        
         train_pattern = r"TRAIN in episode (?P<episode>\d+) has success rate: (?P<sr>[0-1].\d+), " \
                         r"collision rate: (?P<cr>[0-1].\d+), nav time: (?P<time>\d+.\d+), " \
-                        r"nav length: (?P<length>[-+]?\d+.\d+), " \
                         r"total reward: (?P<reward>[-+]?\d+.\d+)"
         train_episode = []
         train_sr = []
@@ -65,7 +67,7 @@ def main():
             train_sr.append(float(r[1]))
             train_cr.append(float(r[2]))
             train_time.append(float(r[3]))
-            train_reward.append(float(r[5]))
+            train_reward.append(float(r[4]))
         train_episode = train_episode[:max_episodes]
         train_sr = train_sr[:max_episodes]
         train_cr = train_cr[:max_episodes]

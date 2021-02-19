@@ -8,12 +8,21 @@ class Planning(nn.Module):
         super(Planning, self).__init__()
         self.nb_states = nb_states
         self.nb_actions = nb_actions
-        self.fc1 = nn.Linear(nb_states, hidden1)
-        self.fc2 = nn.Linear(nb_states, hidden1)
-        self.fc = nn.Linear(hidden1 * 2, hidden2)
-        self.fc3 = nn.Linear(hidden2, hidden2)
-        self.mu_head = nn.Linear(hidden2, nb_actions)
-        self.sigma_head = nn.Linear(hidden2, nb_actions)
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        if device == "cpu":
+            self.fc1 = nn.Linear(nb_states, hidden1)
+            self.fc2 = nn.Linear(nb_states, hidden1)
+            self.fc = nn.Linear(hidden1 * 2, hidden2)
+            self.fc3 = nn.Linear(hidden2, hidden2)
+            self.mu_head = nn.Linear(hidden2, nb_actions)
+            self.sigma_head = nn.Linear(hidden2, nb_actions)
+        else:
+            self.fc1 = nn.Linear(nb_states, hidden1).cuda()
+            self.fc2 = nn.Linear(nb_states, hidden1).cuda()
+            self.fc = nn.Linear(hidden1 * 2, hidden2).cuda()
+            self.fc3 = nn.Linear(hidden2, hidden2).cuda()
+            self.mu_head = nn.Linear(hidden2, nb_actions).cuda()
+            self.sigma_head = nn.Linear(hidden2, nb_actions).cuda()
 
     def forward(self, s, s_):
         x = F.relu(self.fc1(s))
@@ -23,4 +32,3 @@ class Planning(nn.Module):
         u = torch.tanh(self.mu_head(x))
         sigma = F.softplus(self.sigma_head(x))
         return u, sigma
-

@@ -50,7 +50,7 @@ def main():
     # configure logging and device
     logging.basicConfig(level=logging.INFO, format='%(asctime)s, %(levelname)s: %(message)s',
                         datefmt="%Y-%m-%d %H:%M:%S")
-    device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logging.info('Using device: %s', device)
 
     # configure policy

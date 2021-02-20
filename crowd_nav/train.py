@@ -7,7 +7,7 @@ import shutil
 import torch
 import gym
 import git
-from crowd_sim.envs.utils.robot import Robot
+from crowd_sim.envs.utils.robot import Robot, ShapingRobot
 from crowd_sim.envs.utils.human import Human
 from crowd_nav.utils.trainer import Trainer
 from crowd_nav.utils.memory import ReplayMemory
@@ -21,11 +21,13 @@ def main():
     parser.add_argument('--policy', type=str, default='scr')
     parser.add_argument('--policy_config', type=str, default='configs/policy.config')
     parser.add_argument('--train_config', type=str, default='configs/train.config')
+    parser.add_argument('--shaping_config', type=str, default='configs/shaping.config')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--weights', type=str)
     parser.add_argument('--resume', default=False, action='store_true')
     parser.add_argument('--gpu', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
+    parser.add_argument('--shaping', default=None)
     args = parser.parse_args()
 
     # configure paths
@@ -39,11 +41,13 @@ def main():
             args.env_config = os.path.join(args.output_dir, os.path.basename(args.env_config))
             args.policy_config = os.path.join(args.output_dir, os.path.basename(args.policy_config))
             args.train_config = os.path.join(args.output_dir, os.path.basename(args.train_config))
+            args.shaping_config = os.path.join(args.output_dir, os.path.basename(args.shaping_config))
     if make_new_dir:
         os.makedirs(args.output_dir)
         shutil.copy(args.env_config, args.output_dir)
         shutil.copy(args.policy_config, args.output_dir)
         shutil.copy(args.train_config, args.output_dir)
+        shutil.copy(args.shaping_config, args.output_dir)
     log_file = os.path.join(args.output_dir, 'output.log')
     il_weight_file = os.path.join(args.output_dir, 'il_model.pth')
     rl_weight_file = os.path.join(args.output_dir, 'rl_model.pth')
@@ -75,7 +79,21 @@ def main():
     env = gym.make('CrowdSim-v0')
     env.configure(args.env_config)
 
-    robot = Robot()
+    if args.shaping is None:
+        robot = Robot()
+    else:
+        shaping_config = configparser.RawConfigParser()
+        shaping_config.read(args.shaping_config)
+        learn_dict = dict(shaping_config['learn'].items())
+        aggr_params = dict(shaping_config['aggr_params'].items())
+        params_dict = dict(shaping_config['params'].items())
+        params_dict['params'] = aggr_params
+        shaping_args = {
+            **learn_dict,
+            "env": env,
+            "params": params_dict
+        }
+        robot = ShapingRobot(**shaping_args)
     robot.configure(args.env_config, 'robot')
     env.set_robot(robot)
 
@@ -83,7 +101,6 @@ def main():
     for human in humans:
         human.configure(args.env_config, 'humans')
     env.set_humans(humans)
-
     # read training parameters
     if args.train_config is None:
         parser.error('Train config has to be specified for a trainable network')

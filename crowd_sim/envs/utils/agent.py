@@ -41,6 +41,12 @@ class Agent(object):
         self.theta = None
         self.time_step = None
 
+    def start(self):
+        pass
+
+    def shape(self):
+        pass
+
     def configure(self, file, section):
         """
         config is a parser in this case

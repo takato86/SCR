@@ -100,6 +100,8 @@ class ORCA(Policy):
             self.sim.addAgent(self_state.position, *params, self_state.radius + 0.01 + self.safety_space,
                               self_state.v_pref, self_state.velocity)
             for human_state in state.human_states:
+                # print(human_state.position, *params, human_state.radius + 0.01 + self.safety_space,
+                #                   self.max_speed, human_state.velocity)
                 self.sim.addAgent(human_state.position, *params, human_state.radius + 0.01 + self.safety_space,
                                   self.max_speed, human_state.velocity)
         else:

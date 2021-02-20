@@ -1,4 +1,5 @@
 import logging
+import copy
 import gym
 import matplotlib as mpl
 import matplotlib.lines as mlines
@@ -295,10 +296,16 @@ class CrowdSim(gym.Env):
         self.robot.set(0, -self.circle_radius, 0, self.circle_radius, 0, 0, np.pi / 2)
         if self.case_counter[phase] >= 0:
             np.random.seed(counter_offset[phase] + self.case_counter[phase])
+
             if phase in ['train', 'val']:
                 human_num = self.human_num if self.robot.policy.multiagent_training else 1
+                self.humans = self.humans[:human_num]
                 self.generate_random_human_position(human_num=human_num, rule=self.train_val_sim)
             else:
+                if self.human_num != len(self.humans):
+                    # human_numで初めは初期化される。Train時に#human_num=1になり、また戻すので下記の処理
+                    human = self.humans[0]
+                    self.humans = [copy.copy(human) for _ in range(self.human_num)]
                 self.generate_random_human_position(human_num=self.human_num, rule=self.test_sim)
             # case_counter is always between 0 and case_size[phase]
             self.case_counter[phase] = (self.case_counter[phase] + 1) % self.case_size[phase]

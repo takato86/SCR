@@ -29,7 +29,6 @@ class FullState(State):
         return all([self.px == other.px, self.py == other.py, self.vx == other.vx, self.vy == other.vy, self.radius == other.radius])
 
 
-
 class ObservableState(State):
     def __init__(self, px, py, vx, vy, radius):
         self.px = px
@@ -49,6 +48,9 @@ class ObservableState(State):
 
     def __eq__(self, other):
         return all([self.px == other.px, self.py == other.py, self.vx == other.vx, self.vy == other.vy, self.radius == other.radius])
+
+    def is_available(self):
+        return self.px is not None and self.py is not None and self.vx is not None and self.vy is not None and self.radius is not None
 
 
 class JointState(object):

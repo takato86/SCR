@@ -51,6 +51,7 @@ class Explorer(object):
 
         too_close = 0
         ob = self.env.reset(phase)
+        self.robot.start(ob)
         done = False
         min_dist, rewards, actions = ([] for _ in range(3))
         while not done:
@@ -59,7 +60,8 @@ class Explorer(object):
             notify(observation_subscribers, self.env.state)
 
             actions.append(action)
-            rewards.append(reward)
+            additional_reward = self.robot.shape(ob, reward, done)
+            rewards.append(reward + additional_reward)
 
             if isinstance(info, Danger):
                 too_close += 1
@@ -103,6 +105,7 @@ class Explorer(object):
 
         for i in range(k):
             ob = self.env.reset(phase)
+            self.robot.start(ob)
             done = False
             joined_states, rewards, states = ([] for _ in range(3))
             while not done:
@@ -111,7 +114,8 @@ class Explorer(object):
 
                 joined_states.append(self.robot.policy.last_state)
                 states.append(ob + [self.robot.get_observable_state()])
-                rewards.append(reward)
+                additional_reward = self.robot.shape(ob, reward, done)
+                rewards.append(reward + additional_reward)
 
                 if isinstance(info, Danger):
                     too_close += 1

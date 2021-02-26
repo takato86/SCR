@@ -5,23 +5,29 @@ import numpy as np
 from numpy.linalg import norm
 import matplotlib.pyplot as plt
 
-from crowd_sim.envs.utils.info import *
-from crowd_sim.envs.utils.action import *
+from crowd_sim.envs.utils.info import ReachGoal, Collision, Timeout, Danger
+from crowd_sim.envs.utils.action import ActionXY
 from crowd_sim.envs.visualization.observer_subscriber import notify
 from crowd_sim.envs.visualization.video import Video
 from crowd_sim.envs.visualization.plotter import Plotter
 
+
 def get_speed(actions):
     if isinstance(actions[0], ActionXY):
-        return np.asarray([norm(np.array([action.vx, action.vy]), 2) for action in actions])
+        return np.asarray(
+            [norm(np.array([action.vx, action.vy]), 2)for action in actions]
+        )
     else:
         return np.asarray([abs(action.v) for action in actions])
+
 
 def get_acceleration(speed, delta_t):
     return np.diff(speed) / delta_t
 
+
 def get_jerk(acceleration, delta_t):
     return np.diff(acceleration) / delta_t
+
 
 def get_path_length(speed, delta_t):
     return sum(speed) * delta_t
@@ -60,7 +66,7 @@ class Explorer(object):
             notify(observation_subscribers, self.env.state)
 
             actions.append(action)
-            additional_reward = self.robot.shape(ob, reward, done)
+            additional_reward = self.robot.shape(ob, reward, done, info)
             rewards.append(reward + additional_reward)
 
             if isinstance(info, Danger):
@@ -96,15 +102,15 @@ class Explorer(object):
         logging.info(f'Frequency of being in danger: {too_close / self.env.global_time:.2f},'
                      f' and average min separate distance in danger: {average(min_dist):.2f}')
 
-
     def run_k_episodes(self, k, phase, update_memory=False, imitation_learning=False, episode=None, print_failure=False):
         self.robot.policy.set_phase(phase)
 
         success_times, collision_times, timeout_times, min_dist, cumulative_rewards, collision_cases, timeout_cases = ([] for _ in range(7))
-        success, collision, timeout, too_close = 0, 0, 0, 0
+        success, collision, timeout, too_close, achieve_subgoals = 0, 0, 0, 0, 0
 
         for i in range(k):
             ob = self.env.reset(phase)
+            achieve_subgoals += self.robot.get_achieve_subgoals()
             self.robot.start(ob)
             done = False
             joined_states, rewards, states = ([] for _ in range(3))
@@ -114,13 +120,17 @@ class Explorer(object):
 
                 joined_states.append(self.robot.policy.last_state)
                 states.append(ob + [self.robot.get_observable_state()])
-                additional_reward = self.robot.shape(ob, reward, done)
+                if imitation_learning:
+                    additional_reward = 0
+                    _ = self.robot.shape(ob, reward, done, info)
+                else:
+                    additional_reward = self.robot.shape(ob, reward, done, info)
                 rewards.append(reward + additional_reward)
 
                 if isinstance(info, Danger):
                     too_close += 1
                     min_dist.append(info.min_dist)
-
+            assert self.robot.get_achieve_subgoals() < 2  # サブゴールが1つの場合
             if isinstance(info, ReachGoal):
                 success += 1
                 success_times.append(self.env.global_time)
@@ -151,7 +161,8 @@ class Explorer(object):
         extra_info = '' if episode is None else f'in episode {episode} '
         logging.info(f'{phase.upper():<5} {extra_info}has success rate: {success_rate:.2f}, '
                      f'collision rate: {collision_rate:.2f}, nav time: {avg_nav_time:.2f}, '
-                     f'total reward: {average(cumulative_rewards):.4f}')
+                     f'total reward: {average(cumulative_rewards):.4f}, '
+                     f'achieve subgoals: {achieve_subgoals} / {k}')
 
         if phase in ['val', 'test']:
             total_time = sum(success_times + collision_times + timeout_times) * self.robot.time_step

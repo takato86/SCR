@@ -1,6 +1,7 @@
 from crowd_sim.envs.utils.agent import Agent
 from crowd_sim.envs.utils.state import JointState
-from shaner import SarsaRS
+from shaner import SarsaRS, NaiveSRS
+import logging
 
 
 class Robot(Agent):
@@ -16,15 +17,30 @@ class Robot(Agent):
 
 
 class ShapingRobot(Robot):
-    def __init__(self, **params):
+    def __init__(self, method, **params):
         super().__init__()
-        self.reward_shaping = SarsaRS(**params)
+        if method == 'dta':
+            self.reward_shaping = SarsaRS(**params)
+        elif method == 'nrs':
+            self.reward_shaping = NaiveSRS(**params)
+        else:
+            raise Exception(f"{method} is NOT included.")
 
     def start(self, ob):
         state = JointState(self.get_full_state(), ob)
         self.pre_state = state
+        self.reward_shaping.start(state)
 
-    def shape(self, ob, reward, done):
+    def shape(self, ob, reward, done, info):
         state = JointState(self.get_full_state(), ob)
-        sr = self.reward_shaping.perform(self.pre_state, state, reward, done)
+        sr = self.reward_shaping.perform(self.pre_state, state, reward, done, info)
         return sr
+
+    def print4analysis(self):
+        logging.info("The number of achievements for subgoals: {}".format(
+            self.reward_shaping.get_counter_transit()
+            )
+        )
+
+    def get_achieve_subgoals(self):
+        return self.reward_shaping.get_counter_transit()

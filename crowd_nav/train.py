@@ -13,6 +13,7 @@ from crowd_nav.utils.trainer import Trainer
 from crowd_nav.utils.memory import ReplayMemory
 from crowd_nav.utils.explorer import Explorer
 from crowd_nav.policy.policy_factory import policy_factory
+from crowd_sim.envs.utils.info import ReachGoal
 
 
 def main():
@@ -80,20 +81,37 @@ def main():
     env.configure(args.env_config)
 
     if args.shaping is None:
+        logging.info("Non Shaping Agent is used")
         robot = Robot()
     else:
-        shaping_config = configparser.RawConfigParser()
+        logging.info(f"{args.shaping} Shaping Agent is used")
+        shaping_config = configparser.ConfigParser()
         shaping_config.read(args.shaping_config)
-        learn_dict = dict(shaping_config['learn'].items())
+        learn_dict = {}
+        for key, value in shaping_config['learn'].items():
+            learn_dict[key] = float(value)
         aggr_params = dict(shaping_config['aggr_params'].items())
+        aggr_params["n_obs"] = int(aggr_params["n_obs"])
+        aggr_params["_range"] = {
+            "angle": float(aggr_params["angle_range"]),
+            "dist": float(aggr_params["dist_range"])
+        }
         params_dict = dict(shaping_config['params'].items())
         params_dict['params'] = aggr_params
+
+        params_dict['eta'] = float(params_dict['eta'])
+        params_dict['rho'] = float(params_dict['rho'])
+
+        def is_success(done, info):
+            return type(info) is ReachGoal
+        
         shaping_args = {
             **learn_dict,
             "env": env,
-            "params": params_dict
+            "params": params_dict,
+            "is_success": is_success
         }
-        robot = ShapingRobot(**shaping_args)
+        robot = ShapingRobot(args.shaping, **shaping_args)
     robot.configure(args.env_config, 'robot')
     env.set_robot(robot)
 
@@ -164,7 +182,8 @@ def main():
     # fill the memory pool with some RL experience
     if args.resume:
         robot.policy.set_epsilon(epsilon_end)
-        explorer.run_episode('val', video_file=f'data/output/video_e{-1}.mp4')
+        video_file = os.path.join(args.output_dir, f"video_e{-1}.mp4")
+        explorer.run_episode('val', video_file=video_file)
         explorer.run_k_episodes(100, 'train', update_memory=True, episode=0)
         logging.info('Experience set size: %d/%d', len(memory), memory.capacity)
     episode = 0
@@ -184,7 +203,8 @@ def main():
 
         # evaluate the model
         if episode % evaluation_interval == 0:
-            explorer.run_episode('val', video_file=f'data/output/video_e{episode}.mp4')
+            video_file = os.path.join(args.output_dir, f"video_e{episode}.mp4")
+            explorer.run_episode('val', video_file=video_file)
 
         episode += 1
 

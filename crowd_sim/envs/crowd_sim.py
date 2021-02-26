@@ -1,6 +1,7 @@
 import logging
 import copy
 import gym
+import math
 import matplotlib as mpl
 import matplotlib.lines as mlines
 import configparser
@@ -127,6 +128,24 @@ class CrowdSim(gym.Env):
         else:
             self.generate_circle_crossing_human(i)
 
+    def generate_fixed_human(self, i):
+        px = -3.598145756365556
+        py = -1.1049101069911202
+        self.humans[i].set(
+            px, py,
+            -px, -py,
+            0, 0, 0
+        )
+
+    def generate_fixed_opposite_human(self, i):
+        px = self.robot.px - math.cos(math.radians(5))
+        py = self.robot.py - math.sin(math.radians(5))
+        self.humans[i].set(
+            -px, -py,
+            px, py,
+            0, 0, 0
+        )
+
     def generate_random_human_position(self, human_num, rule):
         """
         Generate human position according to certain rule
@@ -147,6 +166,12 @@ class CrowdSim(gym.Env):
         elif rule == 'static':
             for i in range(human_num):
                 self.generate_static_human(i)
+        elif rule == 'fixed':
+            assert human_num == 1
+            self.generate_fixed_human(0)
+        elif rule == 'fixed_oppsite':
+            assert human_num == 1
+            self.generate_fixed_opposite_human(0)
         elif rule == 'mixed':
             static = True if np.random.random() < 0.2 else False
             if static:
@@ -287,10 +312,8 @@ class CrowdSim(gym.Env):
             self.human_times = [0] * self.human_num
         else:
             self.human_times = [0] * (self.human_num if self.robot.policy.multiagent_training else 1)
-        if not self.robot.policy.multiagent_training:
+        if not self.robot.policy.multiagent_training and 'fixed' not in self.train_val_sim:
             self.train_val_sim = 'circle_crossing'
-
-
         counter_offset = {'train': self.case_capacity['val'] + self.case_capacity['test'],
                           'val': 0, 'test': self.case_capacity['val']}
         self.robot.set(0, -self.circle_radius, 0, self.circle_radius, 0, 0, np.pi / 2)

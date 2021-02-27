@@ -106,6 +106,7 @@ class Explorer(object):
         self.robot.policy.set_phase(phase)
 
         success_times, collision_times, timeout_times, min_dist, cumulative_rewards, collision_cases, timeout_cases = ([] for _ in range(7))
+        cumulative_shaped_rewards = []
         success, collision, timeout, too_close, achieve_subgoals = 0, 0, 0, 0, 0
 
         for i in range(k):
@@ -114,6 +115,7 @@ class Explorer(object):
             self.robot.start(ob)
             done = False
             joined_states, rewards, states = ([] for _ in range(3))
+            original_rewards = []
             while not done:
                 action = self.robot.act(ob)
                 ob, reward, done, info = self.env.step(action)
@@ -126,6 +128,7 @@ class Explorer(object):
                 else:
                     additional_reward = self.robot.shape(ob, reward, done, info)
                 rewards.append(reward + additional_reward)
+                original_rewards.append(reward)
 
                 if isinstance(info, Danger):
                     too_close += 1
@@ -150,8 +153,12 @@ class Explorer(object):
                     # only add positive(success) or negative(collision) experience in experience set
                     self.update_memory(joined_states, states, rewards, imitation_learning)
 
+            cumulative_shaped_rewards.append(
+                sum([pow(self.gamma, t * self.robot.time_step * self.robot.v_pref) * reward
+                     for t, reward in enumerate(rewards)])
+            )
             cumulative_rewards.append(sum([pow(self.gamma, t * self.robot.time_step * self.robot.v_pref)
-                                           * reward for t, reward in enumerate(rewards)]))
+                                           * reward for t, reward in enumerate(original_rewards)]))
 
         success_rate = success / k
         collision_rate = collision / k
@@ -162,7 +169,8 @@ class Explorer(object):
         logging.info(f'{phase.upper():<5} {extra_info}has success rate: {success_rate:.2f}, '
                      f'collision rate: {collision_rate:.2f}, nav time: {avg_nav_time:.2f}, '
                      f'total reward: {average(cumulative_rewards):.4f}, '
-                     f'achieve subgoals: {achieve_subgoals} / {k}')
+                     f'achieve subgoals: {achieve_subgoals} / {k}, '
+                     f'total shaped reward: {average(cumulative_shaped_rewards):.4f}')
 
         if phase in ['val', 'test']:
             total_time = sum(success_times + collision_times + timeout_times) * self.robot.time_step

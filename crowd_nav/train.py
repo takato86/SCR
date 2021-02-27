@@ -7,6 +7,8 @@ import shutil
 import torch
 import gym
 import git
+import numpy as np
+
 from crowd_sim.envs.utils.robot import Robot, ShapingRobot
 from crowd_sim.envs.utils.human import Human
 from crowd_nav.utils.trainer import Trainer
@@ -29,7 +31,11 @@ def main():
     parser.add_argument('--gpu', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--shaping', default=None)
+    parser.add_argument('--seed', type=int, default=None)
     args = parser.parse_args()
+
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
 
     # configure paths
     make_new_dir = True
@@ -66,7 +72,7 @@ def main():
     logging.info('Using device: %s', device)
 
     # configure policy
-    policy = policy_factory[args.policy]()
+    policy = policy_factory[args.policy](seed=args.seed)
     if not policy.trainable:
         parser.error('Policy has to be trainable')
     if args.policy_config is None:

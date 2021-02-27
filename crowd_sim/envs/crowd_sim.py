@@ -79,6 +79,7 @@ class CrowdSim(gym.Env):
         self.case_counter = {'train': 0, 'test': 0, 'val': 0}
 
         self.renderer = MatplotRenderer()
+        self.rs = np.random.RandomState(None)
 
     def configure(self, file):
         """
@@ -173,19 +174,19 @@ class CrowdSim(gym.Env):
             assert human_num == 1
             self.generate_fixed_opposite_human(0)
         elif rule == 'mixed':
-            static = True if np.random.random() < 0.2 else False
+            static = True if self.rs.random() < 0.2 else False
             if static:
                 # randomly initialize static objects in a square of (width, height)
                 width = 4
                 height = 8
                 for i in range(self.human_num):
-                    if np.random.random() > 0.5:
+                    if self.rs.random() > 0.5:
                         sign = -1
                     else:
                         sign = 1
                     while True:
-                        px = np.random.random() * width * 0.5 * sign
-                        py = (np.random.random() - 0.5) * height
+                        px = self.rs.random() * width * 0.5 * sign
+                        py = (self.rs.random() - 0.5) * height
                         collide = False
                         for agent in [self.robot] + self.humans[:i]:
                             if norm((px - agent.px, py - agent.py)) < self.humans[i].radius + agent.radius + self.discomfort_dist:
@@ -209,10 +210,10 @@ class CrowdSim(gym.Env):
         if self.randomize_attributes:
             self.humans[i].sample_random_attributes()
         while True:
-            angle = np.random.random() * np.pi * 2
+            angle = self.rs.random() * np.pi * 2
             # add some noise to simulate all the possible cases robot could meet with human
-            px_noise = (np.random.random() - 0.5) * self.humans[i].v_pref
-            py_noise = (np.random.random() - 0.5) * self.humans[i].v_pref
+            px_noise = (self.rs.random() - 0.5) * self.humans[i].v_pref
+            py_noise = (self.rs.random() - 0.5) * self.humans[i].v_pref
             px = self.circle_radius * np.cos(angle) + px_noise
             py = self.circle_radius * np.sin(angle) + py_noise
             collide = False
@@ -229,13 +230,13 @@ class CrowdSim(gym.Env):
     def generate_square_crossing_human(self, i):
         if self.randomize_attributes:
             self.humans[i].sample_random_attributes()
-        if np.random.random() > 0.5:
+        if self.rs.random() > 0.5:
             sign = -1
         else:
             sign = 1
         while True:
-            px = np.random.random() * self.square_width * 0.5 * sign
-            py = (np.random.random() - 0.5) * self.square_width
+            px = self.rs.random() * self.square_width * 0.5 * sign
+            py = (self.rs.random() - 0.5) * self.square_width
             collide = False
             for agent in [self.robot] + self.humans[:i]:
                 if norm((px - agent.px, py - agent.py)) < self.humans[i].radius + agent.radius + self.discomfort_dist:
@@ -244,8 +245,8 @@ class CrowdSim(gym.Env):
             if not collide:
                 break
         while True:
-            gx = np.random.random() * self.square_width * 0.5 * -sign
-            gy = (np.random.random() - 0.5) * self.square_width
+            gx = self.rs.random() * self.square_width * 0.5 * -sign
+            gy = (self.rs.random() - 0.5) * self.square_width
             collide = False
             for agent in [self.robot] + self.humans[:i]:
                 if norm((gx - agent.gx, gy - agent.gy)) < self.humans[i].radius + agent.radius + self.discomfort_dist:
@@ -318,7 +319,7 @@ class CrowdSim(gym.Env):
                           'val': 0, 'test': self.case_capacity['val']}
         self.robot.set(0, -self.circle_radius, 0, self.circle_radius, 0, 0, np.pi / 2)
         if self.case_counter[phase] >= 0:
-            np.random.seed(counter_offset[phase] + self.case_counter[phase])
+            self.rs = np.random.RandomState(counter_offset[phase] + self.case_counter[phase])
 
             if phase in ['train', 'val']:
                 human_num = self.human_num if self.robot.policy.multiagent_training else 1

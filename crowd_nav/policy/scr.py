@@ -42,8 +42,8 @@ class EmpowermentNetwork(nn.Module):
 
 class SCR(SARL):
     max_grad_norm = .5
-    def __init__(self):
-        super().__init__()
+    def __init__(self, seed=None):
+        super().__init__(seed=seed)
         self.name = 'SCR'
 
     def configure(self, config):

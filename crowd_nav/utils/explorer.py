@@ -106,7 +106,7 @@ class Explorer(object):
         self.robot.policy.set_phase(phase)
 
         success_times, collision_times, timeout_times, min_dist, cumulative_rewards, collision_cases, timeout_cases = ([] for _ in range(7))
-        cumulative_shaped_rewards = []
+        cumulative_shaped_rewards, human_times = [], []
         success, collision, timeout, too_close, achieve_subgoals = 0, 0, 0, 0, 0
 
         for i in range(k):
@@ -136,6 +136,7 @@ class Explorer(object):
             assert self.robot.get_achieve_subgoals() < 2  # サブゴールが1つの場合
             if isinstance(info, ReachGoal):
                 success += 1
+                human_times.append(average(self.env.get_human_times()))
                 success_times.append(self.env.global_time)
             elif isinstance(info, Collision):
                 collision += 1
@@ -164,8 +165,9 @@ class Explorer(object):
         collision_rate = collision / k
         assert success + collision + timeout == k
         avg_nav_time = sum(success_times) / len(success_times) if success_times else self.env.time_limit
-
+        avg_human_time = average(human_times)
         extra_info = '' if episode is None else f'in episode {episode} '
+        extra_info += f'avg human time: {avg_human_time:.2f} '
         logging.info(f'{phase.upper():<5} {extra_info}has success rate: {success_rate:.2f}, '
                      f'collision rate: {collision_rate:.2f}, nav time: {avg_nav_time:.2f}, '
                      f'total reward: {average(cumulative_rewards):.4f}, '

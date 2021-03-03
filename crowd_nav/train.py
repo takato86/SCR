@@ -28,10 +28,11 @@ def main():
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--weights', type=str)
     parser.add_argument('--resume', default=False, action='store_true')
-    parser.add_argument('--gpu', default=False, action='store_true')
+    parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--shaping', default=None)
     parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--y', action='store_true')
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -39,7 +40,7 @@ def main():
 
     # configure paths
     make_new_dir = True
-    if os.path.exists(args.output_dir):
+    if os.path.exists(args.output_dir) and not args.y:
         key = input('Output directory already exists! Overwrite the folder? (y/n)')
         if key == 'y' and not args.resume:
             shutil.rmtree(args.output_dir)
@@ -49,6 +50,9 @@ def main():
             args.policy_config = os.path.join(args.output_dir, os.path.basename(args.policy_config))
             args.train_config = os.path.join(args.output_dir, os.path.basename(args.train_config))
             args.shaping_config = os.path.join(args.output_dir, os.path.basename(args.shaping_config))
+    elif os.path.exists(args.output_dir) and args.y:
+        shutil.rmtree(args.output_dir)
+
     if make_new_dir:
         os.makedirs(args.output_dir)
         shutil.copy(args.env_config, args.output_dir)

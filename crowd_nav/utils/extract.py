@@ -131,8 +131,8 @@ def main():
         export(test_path, test_out_dict)
 
         # r"nav length: (?P<length>[-+]?\d+.\d+), " \
-                        
-        train_pattern = r"TRAIN in episode (?P<episode>\d+) has success rate: (?P<sr>[0-1].\d+), " \
+        
+        train_pattern = r"TRAIN in episode (?P<episode>\d+) avg human time: (?P<ht>\d+.\d+) has success rate: (?P<sr>[0-1].\d+), " \
                         r"collision rate: (?P<cr>[0-1].\d+), nav time: (?P<time>\d+.\d+), " \
                         r"total reward: (?P<reward>[-+]?\d+.\d+)"
         train_episode = []
@@ -142,10 +142,10 @@ def main():
         train_reward = []
         for r in re.findall(train_pattern, log):
             train_episode.append(int(r[0]))
-            train_sr.append(float(r[1]))
-            train_cr.append(float(r[2]))
-            train_time.append(float(r[3]))
-            train_reward.append(float(r[4]))
+            train_sr.append(float(r[2]))
+            train_cr.append(float(r[3]))
+            train_time.append(float(r[4]))
+            train_reward.append(float(r[5]))
         train_episode = train_episode[:max_episodes]
         train_sr = train_sr[:max_episodes]
         train_cr = train_cr[:max_episodes]

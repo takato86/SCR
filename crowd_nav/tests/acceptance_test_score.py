@@ -64,16 +64,16 @@ def main():
 
     # configure environment
     env = gym.make('CrowdSim-v0')
-    env.configure(args.env_config)
+    env.configure(env_config_file)
 
     robot = Robot()
-    robot.configure(args.env_config, 'robot')
+    robot.configure(env_config_file, 'robot')
     robot.set_policy(policy)
     env.set_robot(robot)
 
     humans = [Human() for _ in range(env.human_num)]
     for human in humans:
-        human.configure(args.env_config, 'humans')
+        human.configure(env_config_file, 'humans')
     env.set_humans(humans)
 
     if args.square:

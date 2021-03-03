@@ -22,7 +22,7 @@ def main():
     args = parser.parse_args()
 
     # define the names of the models you want to plot and the longest episodes you want to show
-    models = ['CADRL', 'CADRL-DTA', 'SARL', 'SARL-DTA']
+    models = ['CADRL', 'CADRL-DTAv5', 'CADRL-DTAv2', 'SARL-DTA']
     max_episodes = 10000
 
     ax1 = ax2 = ax3 = ax4 = None
@@ -53,10 +53,11 @@ def main():
             val_reward.append(float(r[4]))
 
         # r"nav length: (?P<length>[-+]?\d+.\d+), " \
-                        
-        train_pattern = r"TRAIN in episode (?P<episode>\d+) has success rate: (?P<sr>[0-1].\d+), " \
-                        r"collision rate: (?P<cr>[0-1].\d+), nav time: (?P<time>\d+.\d+), " \
-                        r"total reward: (?P<reward>[-+]?\d+.\d+)"
+        #  avg human time: (?P<ht>\d+.\d+)
+        train_pattern = r"TRAIN in episode (\d+) (?:avg human time: \d+.\d+ |\s*)has success rate: ([0-1].\d+), " \
+                        r"collision rate: ([0-1].\d+), nav time: (\d+.\d+), " \
+                        r"total reward: ([-+]?\d+.\d+)"
+
         train_episode = []
         train_sr = []
         train_cr = []

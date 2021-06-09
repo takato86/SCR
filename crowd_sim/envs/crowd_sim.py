@@ -170,7 +170,7 @@ class CrowdSim(gym.Env):
         elif rule == 'fixed':
             assert human_num == 1
             self.generate_fixed_human(0)
-        elif rule == 'fixed_oppsite':
+        elif rule == 'fixed_opposite':
             assert human_num == 1
             self.generate_fixed_opposite_human(0)
         elif rule == 'mixed':

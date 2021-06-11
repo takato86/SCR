@@ -41,6 +41,18 @@ pip install -e .
 ```
 
 ## Getting started
+1. shapingの設定の確認と変更
+```
+/crowd_nav/configs/shaping.config
+```
+2. 一括実行
+```
+cd crowd_nav
+bash train.sh
+```
+
+----
+
 This repository is organized in two parts: gym_crowd/ folder contains the simulation environment and
 crowd_nav/ folder contains codes for training and testing the policies. Details of the simulation framework can be found
 [here](crowd_sim/README.md). Below are the instructions for training and testing policies, and they should be executed

@@ -173,4 +173,3 @@ class Agent(object):
 
     def reached_destination(self):
         return norm(np.array(self.get_position()) - np.array(self.get_goal_position())) < self.radius
-

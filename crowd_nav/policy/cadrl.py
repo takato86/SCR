@@ -120,7 +120,6 @@ class CADRL(Policy):
                 action_space.append(ActionXY(speed * np.cos(rotation), speed * np.sin(rotation)))
             else:
                 action_space.append(ActionRot(speed, rotation))
-
         self.speeds = speeds
         self.rotations = rotations
         self.action_space = action_space

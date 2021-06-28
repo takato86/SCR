@@ -13,7 +13,8 @@ import rvo2
 from matplotlib import patches
 from numpy.linalg import norm
 from crowd_sim.envs.utils.human import Human
-from crowd_sim.envs.utils.info import *
+from crowd_sim.envs.utils.info import Timeout, Danger, ReachGoal, Collision,\
+    Nothing
 from crowd_sim.envs.utils.utils import point_to_segment_dist
 
 
@@ -319,7 +320,9 @@ class CrowdSim(gym.Env):
                           'val': 0, 'test': self.case_capacity['val']}
         self.robot.set(0, -self.circle_radius, 0, self.circle_radius, 0, 0, np.pi / 2)
         if self.case_counter[phase] >= 0:
-            self.rs = np.random.RandomState(counter_offset[phase] + self.case_counter[phase])
+            self.rs = np.random.RandomState(
+                counter_offset[phase] + self.case_counter[phase]
+            )
 
             if phase in ['train', 'val']:
                 human_num = self.human_num if self.robot.policy.multiagent_training else 1
@@ -329,16 +332,23 @@ class CrowdSim(gym.Env):
                 if self.human_num != len(self.humans):
                     # human_numで初めは初期化される。Train時に#human_num=1になり、また戻すので下記の処理
                     human = self.humans[0]
-                    self.humans = [copy.copy(human) for _ in range(self.human_num)]
-                self.generate_random_human_position(human_num=self.human_num, rule=self.test_sim)
+                    self.humans = [
+                        copy.copy(human) for _ in range(self.human_num)
+                    ]
+                self.generate_random_human_position(
+                    human_num=self.human_num, rule=self.test_sim
+                )
             # case_counter is always between 0 and case_size[phase]
-            self.case_counter[phase] = (self.case_counter[phase] + 1) % self.case_size[phase]
+            self.case_counter[phase] = \
+                (self.case_counter[phase] + 1) % self.case_size[phase]
         else:
             assert phase == 'test'
             if self.case_counter[phase] == -1:
                 # for debugging purposes
                 self.human_num = 3
-                #self.humans = [Human(self.config, 'humans') for _ in range(self.human_num)]
+                # self.humans = [
+                #   Human(self.config, 'humans') for _ in range(self.human_num)
+                # ]
                 self.humans[0].set(0, -6, 0, 5, 0, 0, np.pi / 2)
                 self.humans[1].set(-5, -5, -5, 5, 0, 0, np.pi / 2)
                 self.humans[2].set(5, -5, 5, 5, 0, 0, np.pi / 2)
@@ -379,6 +389,62 @@ class CrowdSim(gym.Env):
                 ob += [self.robot.get_observable_state()]
             human_actions.append(human.act(ob))
 
+        reward, done, info = self._generate_reward(action)
+
+        if update:
+            # store state, action value and attention weights
+            self.state = [
+                self.robot.get_full_state(),
+                [human.get_full_state() for human in self.humans]
+            ]
+            if hasattr(self.robot.policy, 'action_values'):
+                self.action_values.append(self.robot.policy.action_values)
+            if hasattr(self.robot.policy, 'get_attention_weights'):
+                self.attention_weights.append(
+                    self.robot.policy.get_attention_weights()
+                )
+
+            # update all agents
+            self.robot.step(action)
+            for i, human_action in enumerate(human_actions):
+                self.humans[i].step(human_action)
+            self.global_time += self.time_step
+            for i, human in enumerate(self.humans):
+                # only record the first time the human reaches the goal
+                if self.human_times[i] == 0 and human.reached_destination():
+                    self.human_times[i] = self.global_time
+            # TODO observable_stateをrobotのposを参考に加工（d_aの計算）
+            # compute the observation
+            ob = [human.get_observable_state() for human in self.humans]
+
+        else:
+            if self.robot.sensor == 'coordinates':
+                ob = [
+                    human.get_next_observable_state(action)
+                    for human, action in zip(self.humans, human_actions)
+                ]
+            elif self.robot.sensor == 'RGB':
+                raise NotImplementedError
+
+        return ob, reward, done, info
+
+    def render(self, mode='human'):
+        humans = self.humans
+        robots = [self.robot]
+        self.renderer.add_humans(humans)
+        self.renderer.add_robots(robots)
+        self.renderer.render()
+
+        if mode == 'human':
+            pass
+        else:
+            raise NotImplementedError
+
+    def on_click(self, event):
+        # self.humans[0].policy.key_release(event.key)
+        self.humans[0].policy.key_press(event.key)
+
+    def _generate_reward(self, action):
         # collision detection
         dmin = float('inf')
         collision = False
@@ -390,9 +456,13 @@ class CrowdSim(gym.Env):
                 vy = human.vy - action.vy
             elif self.robot.kinematics == 'unicycle' and action.r != 0:
                 vx = (action.v / action.r) * (
-                        np.sin(action.r * self.time_step + self.robot.theta) - np.sin(self.robot.theta))
+                        np.sin(
+                            action.r * self.time_step + self.robot.theta
+                        ) - np.sin(self.robot.theta))
                 vy = (action.v / action.r) * (
-                        np.cos(action.r * self.time_step + self.robot.theta) - np.cos(self.robot.theta))
+                        np.cos(
+                            action.r * self.time_step + self.robot.theta
+                        ) - np.cos(self.robot.theta))
             else:
                 vx = human.vx - action.v * np.cos(action.r + self.robot.theta)
                 vy = human.vy - action.v * np.sin(action.r + self.robot.theta)
@@ -418,9 +488,19 @@ class CrowdSim(gym.Env):
                     # detect collision but don't take humans' collision into account
                     logging.debug('Collision happens between humans in step()')
 
+        # TODO social norm; right handed rule
+        # dg, p_x, p_y, phi-varphi
+        dg = ((self.agent.gx - self.agent.px)**2 + (self.agent.gy - self.agent.py)**2)**.5
+        
+
+
         # check if reaching the goal
-        end_position = np.array(self.robot.compute_position(action, self.time_step))
-        reaching_goal = norm(end_position - np.array(self.robot.get_goal_position())) < self.robot.radius
+        end_position = np.array(
+            self.robot.compute_position(action, self.time_step)
+        )
+        reaching_goal = norm(
+            end_position - np.array(self.robot.get_goal_position())
+        ) < self.robot.radius
 
         if self.global_time >= self.time_limit - 1:
             reward = 0
@@ -437,58 +517,20 @@ class CrowdSim(gym.Env):
         elif dmin < self.discomfort_dist:
             # only penalize agent for getting too close if it's visible
             # adjust the reward based on FPS
-            reward = (dmin - self.discomfort_dist) * self.discomfort_penalty_factor * self.time_step * (1 - (self.robot.vx**2 + self.robot.vy**2)**.5)
+            # unit_v = (self.robot.vx**2 + self.robot.vy**2)**.5
+            # 1はmax_v? pref_v, 1-unit_distは最大値と現在値の差分。補正項かな。
+            # reward = (dmin - self.discomfort_dist) * self.discomfort_penalty_factor * self.time_step * (1 - unit_v)
+            reward = (dmin - self.discomfort_dist) * self.discomfort_penalty_factor
+            # self.discomfort_dist = 0.2, self.discomfort_penalty_factor=0.5で元論文と一致
             done = False
             info = Danger(dmin)
+        # TODO social normの実装を追加する。
         else:
             reward = 0
             done = False
             info = Nothing()
+        return reward, done, info
 
-        if update:
-            # store state, action value and attention weights
-            self.state = [self.robot.get_full_state(), [human.get_full_state() for human in self.humans]]
-            if hasattr(self.robot.policy, 'action_values'):
-                self.action_values.append(self.robot.policy.action_values)
-            if hasattr(self.robot.policy, 'get_attention_weights'):
-                self.attention_weights.append(self.robot.policy.get_attention_weights())
-
-            # update all agents
-            self.robot.step(action)
-            for i, human_action in enumerate(human_actions):
-                self.humans[i].step(human_action)
-            self.global_time += self.time_step
-            for i, human in enumerate(self.humans):
-                # only record the first time the human reaches the goal
-                if self.human_times[i] == 0 and human.reached_destination():
-                    self.human_times[i] = self.global_time
-
-            # compute the observation
-            ob = [human.get_observable_state() for human in self.humans]
-
-        else:
-            if self.robot.sensor == 'coordinates':
-                ob = [human.get_next_observable_state(action) for human, action in zip(self.humans, human_actions)]
-            elif self.robot.sensor == 'RGB':
-                raise NotImplementedError
-
-        return ob, reward, done, info
-
-    def render(self, mode='human'):
-        humans = self.humans
-        robots = [self.robot]
-        self.renderer.add_humans(humans)
-        self.renderer.add_robots(robots)
-        self.renderer.render()
-
-        if mode == 'human':
-            pass
-        else:
-            raise NotImplementedError
-
-    def on_click(self, event):
-        #self.humans[0].policy.key_release(event.key)
-        self.humans[0].policy.key_press(event.key)
 
 class Renderer(object):
     def __init__(self):
@@ -511,16 +553,32 @@ class MatplotRenderer(Renderer):
     def add_humans(self, humans):
         self.reset_axis()
         for i, human in enumerate(humans):
-            human_circle = plt.Circle(human.get_position(), human.radius, fill=False, color=self.cmap(i))
+            human_circle = plt.Circle(
+                human.get_position(), human.radius, fill=False,
+                color=self.cmap(i)
+            )
             self.ax.add_artist(human_circle)
-            goal = mlines.Line2D([human.get_goal_position()[0]], [human.get_goal_position()[1]], color=self.cmap(i), marker='*', linestyle='None', markersize=15, label='Goal', fillstyle='none')
+            goal = mlines.Line2D(
+                [human.get_goal_position()[0]],
+                [human.get_goal_position()[1]],
+                color=self.cmap(i), marker='*',
+                linestyle='None', markersize=15,
+                label='Goal', fillstyle='none'
+            )
             self.ax.add_artist(goal)
 
     def add_robots(self, robots):
         for i, robot in enumerate(robots):
-            robot_circle = plt.Circle(robot.get_position(),robot.radius, fill=True, color='k', fc='orange')
+            robot_circle = plt.Circle(
+                robot.get_position(),
+                robot.radius, fill=True, color='k', fc='orange')
             self.ax.add_artist(robot_circle)
-            goal = mlines.Line2D([robot.get_goal_position()[0]], [robot.get_goal_position()[1]], color='red', marker='*', linestyle='None',markersize=15, label='Goal')
+            goal = mlines.Line2D(
+                [robot.get_goal_position()[0]],
+                [robot.get_goal_position()[1]],
+                color='red', marker='*', linestyle='None',
+                markersize=15, label='Goal'
+            )
             self.ax.add_artist(goal)
 
     def render(self):
@@ -539,5 +597,3 @@ class MatplotRenderer(Renderer):
 
     def connect(self, func):
         self.fig.canvas.mpl_connect('key_press_event', func)
-
-

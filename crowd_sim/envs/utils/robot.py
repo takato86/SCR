@@ -15,6 +15,18 @@ class Robot(Agent):
         action = self.policy.predict(state)
         return action
 
+# TODO 修正 for SACADRL
+class SARobot(Agent):
+    def __init__(self):
+        super().__init__()
+    
+    def act(self, ob):
+        if self.policy is None:
+            raise AttributeError('Policy attribute has to be set!')
+        state = JointState(self.get_full_state(), ob)
+        action = self.policy.predict(state)
+        return action
+
 
 class ShapingRobot(Robot):
     def __init__(self, method, **params):

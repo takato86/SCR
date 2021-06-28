@@ -49,3 +49,12 @@ class Nothing(Info):
 
     def __str__(self):
         return ''
+
+
+class SocialNorm(Info):
+    def __init__(self):
+        super(Info, self).__init__()
+        pass
+
+    def __str__(self):
+        return 'Social Norm'

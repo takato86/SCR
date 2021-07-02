@@ -6,6 +6,7 @@ from crowd_nav.policy.scr import SCR
 from crowd_nav.policy.interactive import Interactive
 
 policy_factory['cadrl'] = CADRL
+policy_factory['sa_cadrl'] = CADRL
 policy_factory['lstm_rl'] = LstmRL
 policy_factory['sarl'] = SARL
 policy_factory['scr'] = SCR

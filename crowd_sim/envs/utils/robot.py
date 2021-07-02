@@ -1,7 +1,8 @@
 from crowd_sim.envs.utils.agent import Agent
-from crowd_sim.envs.utils.state import JointState
+from crowd_sim.envs.utils.state import JointState, SAObservableState
 from shaner import SarsaRS, NaiveSRS
 import logging
+import numpy as np
 
 
 class Robot(Agent):
@@ -15,15 +16,24 @@ class Robot(Agent):
         action = self.policy.predict(state)
         return action
 
-# TODO 修正 for SACADRL
+
 class SARobot(Agent):
     def __init__(self):
         super().__init__()
-    
+
     def act(self, ob):
         if self.policy is None:
             raise AttributeError('Policy attribute has to be set!')
-        state = JointState(self.get_full_state(), ob)
+        sa_ob = []
+        for hs in ob:
+            d_a = ((self.px - hs.px)**2 + (self.py - hs.py)**2)**.5
+            phi = np.arctan2(hs.vy, hs.vx)
+            sa_ob.append(
+                SAObservableState(
+                    hs.px, hs.py, hs.vx, hs.vy, hs.radius, d_a, phi
+                )
+            )
+        state = JointState(self.get_full_state(), sa_ob)
         action = self.policy.predict(state)
         return action
 

@@ -9,7 +9,7 @@ import gym
 import git
 import numpy as np
 
-from crowd_sim.envs.utils.robot import Robot, ShapingRobot
+from crowd_sim.envs.utils.robot import Robot, ShapingRobot, SARobot
 from crowd_sim.envs.utils.human import Human
 from crowd_nav.utils.trainer import Trainer
 from crowd_nav.utils.memory import ReplayMemory
@@ -92,7 +92,10 @@ def main():
 
     if args.shaping is None:
         logging.info("Non Shaping Agent is used")
-        robot = Robot()
+        if args.policy == 'sa_cadrl':
+            robot = SARobot()
+        else:
+            robot = Robot()
     else:
         logging.info(f"{args.shaping} Shaping Agent is used")
         shaping_config = configparser.ConfigParser()

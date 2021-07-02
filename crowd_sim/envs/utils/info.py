@@ -51,10 +51,10 @@ class Nothing(Info):
         return ''
 
 
-class SocialNorm(Info):
+class Violation(Info):
     def __init__(self):
         super(Info, self).__init__()
         pass
 
     def __str__(self):
-        return 'Social Norm'
+        return 'Violate Social Norm'

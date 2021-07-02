@@ -13,9 +13,10 @@ import rvo2
 from matplotlib import patches
 from numpy.linalg import norm
 from crowd_sim.envs.utils.human import Human
+from crowd_sim.envs.utils.robot import SARobot
 from crowd_sim.envs.utils.info import Timeout, Danger, ReachGoal, Collision,\
-    Nothing
-from crowd_sim.envs.utils.utils import point_to_segment_dist
+    Nothing, Violation
+from crowd_sim.envs.utils.utils import point_to_segment_dist, rotate_coordinate
 
 
 class CrowdSimConfig():
@@ -34,6 +35,7 @@ class CrowdSimConfig():
         self.collision_penalty = config.getfloat('reward', 'collision_penalty')
         self.discomfort_dist = config.getfloat('reward', 'discomfort_dist')
         self.discomfort_penalty_factor = config.getfloat('reward', 'discomfort_penalty_factor')
+        self.violation_penalty = config.getfloat('reward', 'violation_penalty')
 
         self.square_width = config.getfloat('sim', 'square_width')
         self.circle_radius = config.getfloat('sim', 'circle_radius')
@@ -95,6 +97,7 @@ class CrowdSim(gym.Env):
         self.collision_penalty = config.collision_penalty
         self.discomfort_dist = config.discomfort_dist
         self.discomfort_penalty_factor = config.discomfort_penalty_factor
+        self.violation_penalty = config.violation_penalty
 
         self.square_width = config.square_width
         self.circle_radius = config.circle_radius
@@ -413,7 +416,6 @@ class CrowdSim(gym.Env):
                 # only record the first time the human reaches the goal
                 if self.human_times[i] == 0 and human.reached_destination():
                     self.human_times[i] = self.global_time
-            # TODO observable_stateをrobotのposを参考に加工（d_aの計算）
             # compute the observation
             ob = [human.get_observable_state() for human in self.humans]
 
@@ -425,7 +427,6 @@ class CrowdSim(gym.Env):
                 ]
             elif self.robot.sensor == 'RGB':
                 raise NotImplementedError
-
         return ob, reward, done, info
 
     def render(self, mode='human'):
@@ -488,13 +489,11 @@ class CrowdSim(gym.Env):
                     # detect collision but don't take humans' collision into account
                     logging.debug('Collision happens between humans in step()')
 
-        # TODO social norm; right handed rule
-        # dg, p_x, p_y, phi-varphi
-        dg = ((self.agent.gx - self.agent.px)**2 + (self.agent.gy - self.agent.py)**2)**.5
-        
-
-
-        # check if reaching the goal
+        if type(self.robot) == SARobot:
+            is_violate_snorm = self._is_in_social_norm()
+        else:
+            is_violate_snorm = False
+        #  check if reaching the goal
         end_position = np.array(
             self.robot.compute_position(action, self.time_step)
         )
@@ -524,12 +523,86 @@ class CrowdSim(gym.Env):
             # self.discomfort_dist = 0.2, self.discomfort_penalty_factor=0.5で元論文と一致
             done = False
             info = Danger(dmin)
-        # TODO social normの実装を追加する。
+        elif is_violate_snorm:
+            reward = self.violation_penalty
+            done = False
+            info = Violation()
         else:
             reward = 0
             done = False
             info = Nothing()
         return reward, done, info
+
+    def _transform_coordinate(self, x, y):
+        px, py = self.robot.px, self.robot.py
+        theta_rot = self._get_rotation_theta()
+        rel_x, rel_y = x - px, y - py
+        rot_x, rot_y = rotate_coordinate(rel_x, rel_y, theta_rot)
+        return rot_x, rot_y
+
+    def _transform_angle(self, theta):
+        theta_rot = self._get_rotation_theta()
+        return theta - theta_rot
+    
+    def _transform_velocity(self, vx, vy):
+        theta_rot = self._get_rotation_theta()
+        rot_vx, rot_vy = rotate_coordinate(vx, vy, theta_rot)
+        return rot_vx, rot_vy
+    
+    def _get_rotation_theta(self):
+        dgx = self.robot.gx - self.robot.px
+        dgy = self.robot.gy - self.robot.py
+        return np.arctan2(dgy, dgx)
+
+    def _is_in_social_norm(self):
+        # Social norm; right handed rule
+        local_robot_vx, local_robot_vy = self._transform_velocity(
+            self.robot.vx, self.robot.vy
+        )
+        local_robot_px, local_robot_py = self._transform_coordinate(
+            self.robot.px, self.robot.py
+        )
+        local_robot_gx, local_robot_gy = self._transform_coordinate(
+            self.robot.gx, self.robot.gy
+        )
+        dg = ((local_robot_gx - local_robot_px)**2 + (local_robot_gy - local_robot_py)**2)**.5
+        v = (local_robot_vx**2 + local_robot_vy**2)**.5
+        b_penalties = []
+        for human in self.humans:
+            local_human_vx, local_human_vy = self._transform_velocity(
+                human.vx, human.vy
+            )
+            local_human_px, local_human_py = self._transform_coordinate(
+                human.px, human.py
+            )
+            local_robot_theta = self._transform_angle(self.robot.theta)
+            phi = np.arctan2(local_human_vy, local_human_vx)
+            diff_phi = phi - local_robot_theta
+            is_s_pass = all([
+                dg > 3, 1 < local_human_px and local_human_px < 4,
+                abs(diff_phi) > 3/4*np.pi
+            ])
+            tilde_v = (local_human_vx**2 + local_human_vy**2)**.5
+            is_s_outk = all([
+                dg > 3, 0 < local_human_px and local_human_px < 3,
+                v > tilde_v, 0 < local_human_py and local_human_py < 1,
+                abs(diff_phi) < np.pi/4
+            ])
+            # 左側からhumanが来てcrossingするケースにペナルティ。
+            phi_rot = np.arctan(
+                (local_human_vy - local_robot_vy) / (local_human_vx - local_robot_vx)
+            )
+            da = (
+                (local_robot_px - local_human_px)**2 + (local_robot_py - local_human_py)**2
+                )**.5
+            is_s_cross = all([
+                dg > 3, da < 2, phi_rot > 0,
+                -3/4*np.pi < diff_phi and diff_phi < -np.pi/4
+            ])
+            # print(dg, da, phi_rot, diff_phi)
+            # print(is_s_cross)
+            b_penalties.append(any([is_s_pass, is_s_outk, is_s_cross]))
+        return any(b_penalties)
 
 
 class Renderer(object):

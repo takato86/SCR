@@ -43,6 +43,9 @@ class CrowdSimConfig():
         self.train_val_sim = config.get('sim', 'train_val_sim')
         self.test_sim = config.get('sim', 'test_sim')
 
+        self.human_initial_px = config.getfloat('humans', 'initial_px')
+        self.human_initial_py = config.getfloat('humans', 'initial_py')
+
 
 class CrowdSim(gym.Env):
     metadata = {'render.modes': ['human']}
@@ -109,6 +112,9 @@ class CrowdSim(gym.Env):
         self.train_val_sim = config.train_val_sim
         self.test_sim = config.test_sim
 
+        self.human_initial_px = config.human_initial_px
+        self.human_initial_py = config.human_initial_py
+
         logging.info('human number: {}'.format(self.human_num))
         if self.randomize_attributes:
             logging.info("Randomize human's radius and preferred speed")
@@ -134,8 +140,10 @@ class CrowdSim(gym.Env):
             self.generate_circle_crossing_human(i)
 
     def generate_fixed_human(self, i):
-        px = -3.598145756365556
-        py = -1.1049101069911202
+        # v.1
+        px = self.human_initial_px
+        py = self.human_initial_py
+
         self.humans[i].set(
             px, py,
             -px, -py,
@@ -603,6 +611,25 @@ class CrowdSim(gym.Env):
             # print(is_s_cross)
             b_penalties.append(any([is_s_pass, is_s_outk, is_s_cross]))
         return any(b_penalties)
+
+
+    def robot_forth_human(self):
+        """ robotがhumanの前を通過しているか
+
+        """
+        robot = self.robot
+        humans = self.humans
+        angle = 3/180*np.pi
+        is_forths = []
+        for human in humans:
+            rel_x = robot.px - human.px
+            rel_y = robot.py - human.py
+            p_angle = np.arctan2(rel_y, rel_x)
+            v_angle = np.arctan2(human.vy, human.vx)
+            b_angle = (p_angle - angle) < v_angle
+            b_angle &= (p_angle + angle) > v_angle
+            is_forths.append(b_angle)
+        return any(is_forths)
 
 
 class Renderer(object):

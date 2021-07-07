@@ -1,5 +1,7 @@
 import logging
 import copy
+
+from numpy.core.defchararray import count
 import torch
 import numpy as np
 from numpy.linalg import norm
@@ -107,18 +109,21 @@ class Explorer(object):
 
         success_times, collision_times, timeout_times, min_dist, cumulative_rewards, collision_cases, timeout_cases = ([] for _ in range(7))
         cumulative_shaped_rewards, human_times = [], []
-        success, collision, timeout, too_close, achieve_subgoals = 0, 0, 0, 0, 0
+        success, collision, timeout, too_close  = 0, 0, 0, 0
+        achieve_subgoals, count_forth = 0, 0
 
         for i in range(k):
             ob = self.env.reset(phase)
             achieve_subgoals += self.robot.get_achieve_subgoals()
             self.robot.start(ob)
             done = False
+            is_forth = self.env.robot_forth_human()
             joined_states, rewards, states = ([] for _ in range(3))
             original_rewards = []
             while not done:
                 action = self.robot.act(ob)
                 ob, reward, done, info = self.env.step(action)
+                is_forth |= self.env.robot_forth_human()
 
                 joined_states.append(self.robot.policy.last_state)
                 states.append(ob + [self.robot.get_observable_state()])
@@ -148,6 +153,9 @@ class Explorer(object):
                 timeout_times.append(self.env.time_limit)
             else:
                 raise ValueError('Invalid end signal from environment')
+            
+            if is_forth:
+                count_forth += 1
 
             if update_memory:
                 if isinstance(info, ReachGoal) or isinstance(info, Collision):
@@ -172,7 +180,8 @@ class Explorer(object):
                      f'collision rate: {collision_rate:.2f}, nav time: {avg_nav_time:.2f}, '
                      f'total reward: {average(cumulative_rewards):.4f}, '
                      f'achieve subgoals: {achieve_subgoals} / {k}, '
-                     f'total shaped reward: {average(cumulative_shaped_rewards):.4f}')
+                     f'total shaped reward: {average(cumulative_shaped_rewards):.4f}, '
+                     f'go through in front of human: {count_forth} / {k}')
 
         if phase in ['val', 'test']:
             total_time = sum(success_times + collision_times + timeout_times) * self.robot.time_step

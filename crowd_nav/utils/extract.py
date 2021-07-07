@@ -106,25 +106,26 @@ def main():
                       
         test_pattern = r"TEST   in episode (?P<episode>\d+) has success rate: (?P<sr>[0-1].\d+), " \
                       r"collision rate: (?P<cr>[0-1].\d+), nav time: (?P<time>\d+.\d+), " \
-                      r"total reward: (?P<reward>[-+]?\d+.\d+)"
+                      r"total reward: (?P<reward>[-+]?\d+.\d+).*, go through in front of human: (?P<forth>\d+) / \d+"
         test_episode = []
-        test_sr = []
-        test_cr = []
-        test_time = []
-        test_reward = []
+        test_sr, test_cr = [], []
+        test_time, test_reward = [], []
+        test_forth = []
         for r in re.findall(test_pattern, log):
             test_episode.append(int(r[0]))
             test_sr.append(float(r[1]))
             test_cr.append(float(r[2]))
             test_time.append(float(r[3]))
             test_reward.append(float(r[4]))
+            test_forth.append(int(r[5]))
 
         test_out_dict = {
             "episode": test_episode,
             "success_rate": test_sr,
             "collision_rate": test_cr,
             "nav_time": test_time,
-            "total_reward": test_reward
+            "total_reward": test_reward,
+            "num_front_human": test_forth
         }
         test_arr.append(test_out_dict)
         test_path = os.path.join(dir_name, "test_results.csv")
@@ -134,29 +135,31 @@ def main():
         
         train_pattern = r"TRAIN in episode (\d+) (?:avg human time: \d+.\d+ |\s*)has success rate: ([0-1].\d+), " \
                         r"collision rate: ([0-1].\d+), nav time: (\d+.\d+), " \
-                        r"total reward: ([-+]?\d+.\d+)"
+                        r"total reward: ([-+]?\d+.\d+).*, go through in front of human: (\d+) / \d+"
 
         train_episode = []
-        train_sr = []
-        train_cr = []
-        train_time = []
-        train_reward = []
+        train_sr, train_cr = [], []
+        train_time, train_reward = [], []
+        train_forth = []
         for r in re.findall(train_pattern, log):
             train_episode.append(int(r[0]))
             train_sr.append(float(r[1]))
             train_cr.append(float(r[2]))
             train_time.append(float(r[3]))
             train_reward.append(float(r[4]))
+            train_forth.append(int(r[5]))
         train_episode = train_episode[:max_episodes]
         train_sr = train_sr[:max_episodes]
         train_cr = train_cr[:max_episodes]
         train_time = train_time[:max_episodes]
         train_reward = train_reward[:max_episodes]
+        train_forth = train_forth[:max_episodes]
         # "episode": train_episode,
         train_sr_smooth = running_mean(train_sr, args.window_size)
         train_cr_smooth = running_mean(train_cr, args.window_size)
         train_time_smooth = running_mean(train_time, args.window_size)
         train_reward_smooth = running_mean(train_reward, args.window_size)
+        train_forth_smooth = running_mean(train_forth, args.window_size)
         train_out_dict = {
             "success_rate": train_sr_smooth,
             # "success_rate_smooth": train_sr_smooth,
@@ -166,6 +169,7 @@ def main():
             # "nav_time_smooth": train_time_smooth,
             "total_reward": train_reward_smooth,
             # "total_reward_smooth": train_reward_smooth
+            "num_front_human": train_forth_smooth
         }
         train_arr.append(train_out_dict)
         train_path = os.path.join(dir_name, "train_results.csv")

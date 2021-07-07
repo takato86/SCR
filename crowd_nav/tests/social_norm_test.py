@@ -70,61 +70,50 @@ def create_env():
     # observation_subscribers = []
 
 
-class TransformationTest(unittest.TestCase):
+class CheckTest(unittest.TestCase):
     def setUp(self):
         self.env, self.robot, self.humans = create_env()
-
-    def test_transform_velocity(self):
-        px = -3.598145756365556
-        py = -1.1049101069911202
+    
+    def test_is_annoying(self):
+        robot_gx, robot_gy = 0, 4
+        human_gx, human_gy = 4, 0
+        _ = self.env.reset(phase, test_case)
+        # robotがhumanの前にいる場合
         self.robot.set(
-            0, -4, 0, 4, 0, 0, np.pi/2
+            0, 0, robot_gx, robot_gy, 0, 1, np.pi/2
         )
         self.humans[0].set(
-            px, py, -px, -py, 0, 0, 0
+            -2, 0, human_gx, human_gy, 1, 0, 0
         )
-        _ = self.env.reset(phase, test_case)
-        x, y = self.env._transform_velocity(0, 1)
-        self.assertAlmostEqual(x, 1)
-        self.assertAlmostEqual(y, 0)
-
-    def test_transform_parallel(self):
-        # humanとrobotの初期位置を決定する。
-        px = -3.598145756365556
-        py = -1.1049101069911202
+        is_annoying = self.env._is_annoying()
+        self.assertTrue(is_annoying)
+        # robotがhumanの後ろにいる場合
         self.robot.set(
-            0, -4, 0, 4, 0, 0, np.pi/2
+            -2, 0, robot_gx, robot_gy, 0, 1, np.pi/2
         )
         self.humans[0].set(
-            px, py, -px, -py, 0, 0, 0
+            0.5, 0, human_gx, human_gy, 1, 0, 0
         )
-        _ = self.env.reset(phase, test_case)
-        x, y = self.env._transform_coordinate(0, 0)
-        self.assertAlmostEqual(x, 4)
-        self.assertAlmostEqual(y, 0)
-        x, y = self.env._transform_coordinate(4, 0)
-        self.assertAlmostEqual(x, 4)
-        self.assertAlmostEqual(y, -4)
-        x, y = self.env._transform_coordinate(0, 4)
-        self.assertAlmostEqual(x, 8)
-        self.assertAlmostEqual(y, 0)
-        x, y = self.env._transform_coordinate(-4, 0)
-        self.assertAlmostEqual(x, 4)
-        self.assertAlmostEqual(y, 4)
-
-    def test_transform_angle(self):
-        # humanとrobotの初期位置を決定する。
-        px = -3.598145756365556
-        py = -1.1049101069911202
+        is_annoying = self.env._is_annoying()
+        self.assertFalse(is_annoying)
+        # robotがhumanの前にいるが、x軸方向に範囲外の場合
         self.robot.set(
-            0, -4, 0, 4, 0, 0, np.pi/2
+            4, 0, robot_gx, robot_gy, 0, 1, np.pi/2
         )
         self.humans[0].set(
-            px, py, -px, -py, 0, 0, 0
+            -2, 0, human_gx, human_gy, 1, 0, 0
         )
-        _ = self.env.reset(phase, test_case)
-        theta = self.env._transform_angle(np.pi/2)
-        self.assertEqual(theta, 0)
+        is_annoying = self.env._is_annoying()
+        self.assertFalse(is_annoying)
+        # robotがhumanの前にいるが、y軸方向に範囲外の場合
+        self.robot.set(
+            0, 2, robot_gx, robot_gy, 0, 1, np.pi/2
+        )
+        self.humans[0].set(
+            -2, 0, human_gx, human_gy, 1, 0, 0
+        )
+        is_annoying = self.env._is_annoying()
+        self.assertFalse(is_annoying)
 
     def test_is_in_s_pass(self):
         robot_gx, robot_gy = 4, 0
@@ -223,6 +212,79 @@ class TransformationTest(unittest.TestCase):
         )
         is_violate = self.env._is_in_social_norm()
         self.assertFalse(is_violate)
+
+
+class TransformationTest(unittest.TestCase):
+    def setUp(self):
+        self.env, self.robot, self.humans = create_env()
+
+    def test_transform_robot_velocity(self):
+        px = -3.598145756365556
+        py = -1.1049101069911202
+        self.robot.set(
+            0, -4, 0, 4, 0, 0, np.pi/2
+        )
+        self.humans[0].set(
+            px, py, -px, -py, 0, 0, 0
+        )
+        _ = self.env.reset(phase, test_case)
+        x, y = self.env._transform_robot_velocity(0, 1)
+        self.assertAlmostEqual(x, 1)
+        self.assertAlmostEqual(y, 0)
+
+    def test_transform_parallel(self):
+        # humanとrobotの初期位置を決定する。
+        px = -3.598145756365556
+        py = -1.1049101069911202
+        _ = self.env.reset(phase, test_case)
+        self.robot.set(
+            0, -4, 0, 4, 0, 0, np.pi/2
+        )
+        self.humans[0].set(
+            px, py, -px, -py, 0, 0, 0
+        )
+        x, y = self.env._transform_robot_coordinate(0, 0)
+        self.assertAlmostEqual(x, 4)
+        self.assertAlmostEqual(y, 0)
+        x, y = self.env._transform_robot_coordinate(4, 0)
+        self.assertAlmostEqual(x, 4)
+        self.assertAlmostEqual(y, -4)
+        x, y = self.env._transform_robot_coordinate(0, 4)
+        self.assertAlmostEqual(x, 8)
+        self.assertAlmostEqual(y, 0)
+        x, y = self.env._transform_robot_coordinate(-4, 0)
+        self.assertAlmostEqual(x, 4)
+        self.assertAlmostEqual(y, 4)
+
+    def test_transform_robot_angle(self):
+        # humanとrobotの初期位置を決定する。
+        px = -3.598145756365556
+        py = -1.1049101069911202
+        _ = self.env.reset(phase, test_case)
+        self.robot.set(
+            0, -4, 0, 4, 0, 0, np.pi/2
+        )
+        self.humans[0].set(
+            px, py, -px, -py, 0, 0, 0
+        )
+        theta = self.env._transform_robot_angle(np.pi/2)
+        self.assertEqual(theta, 0)
+
+    def test_transform_human_local_coordinate(self):
+        gx = 1
+        gy = 3
+        _ = self.env.reset(phase, test_case)
+        self.robot.set(
+            0, -4, 0, 4, 0, 0, np.pi/2
+        )
+        self.humans[0].set(
+            1, 0, gx, gy, 0, 1, np.pi/2
+        )
+        x, y = self.env._transform_human_local_coordinate(
+            self.humans[0], self.robot.px, self.robot.py
+        )
+        self.assertAlmostEqual(x, -4)
+        self.assertAlmostEqual(y, 1)
 
 
 if __name__ == "__main__":

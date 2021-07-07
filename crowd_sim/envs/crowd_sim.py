@@ -15,7 +15,7 @@ from numpy.linalg import norm
 from crowd_sim.envs.utils.human import Human
 from crowd_sim.envs.utils.robot import SARobot
 from crowd_sim.envs.utils.info import Timeout, Danger, ReachGoal, Collision,\
-    Nothing, Violation
+    Nothing, Violation, Annoying
 from crowd_sim.envs.utils.utils import point_to_segment_dist, rotate_coordinate
 
 
@@ -36,6 +36,8 @@ class CrowdSimConfig():
         self.discomfort_dist = config.getfloat('reward', 'discomfort_dist')
         self.discomfort_penalty_factor = config.getfloat('reward', 'discomfort_penalty_factor')
         self.violation_penalty = config.getfloat('reward', 'violation_penalty')
+        self.annoying_penalty = config.getfloat('reward', 'annoying_penalty')
+        self.use_annoying = config.getboolean('reward', 'use_annoying')
 
         self.square_width = config.getfloat('sim', 'square_width')
         self.circle_radius = config.getfloat('sim', 'circle_radius')
@@ -101,6 +103,8 @@ class CrowdSim(gym.Env):
         self.discomfort_dist = config.discomfort_dist
         self.discomfort_penalty_factor = config.discomfort_penalty_factor
         self.violation_penalty = config.violation_penalty
+        self.annoying_penalty = config.annoying_penalty
+        self.use_annoying = config.use_annoying
 
         self.square_width = config.square_width
         self.circle_radius = config.circle_radius
@@ -497,10 +501,15 @@ class CrowdSim(gym.Env):
                     # detect collision but don't take humans' collision into account
                     logging.debug('Collision happens between humans in step()')
 
+        # check if violating the social norm
         if type(self.robot) == SARobot:
             is_violate_snorm = self._is_in_social_norm()
         else:
             is_violate_snorm = False
+        
+        # check if annoying the human
+        is_annoying = self._is_annoying() and self.use_annoying
+
         #  check if reaching the goal
         end_position = np.array(
             self.robot.compute_position(action, self.time_step)
@@ -535,55 +544,81 @@ class CrowdSim(gym.Env):
             reward = self.violation_penalty
             done = False
             info = Violation()
+        elif is_annoying:
+            assert self.use_annoying is True
+            reward = self.annoying_penalty
+            done = False
+            info = Annoying()
         else:
             reward = 0
             done = False
             info = Nothing()
         return reward, done, info
 
-    def _transform_coordinate(self, x, y):
+    def _transform_robot_coordinate(self, x, y):
         px, py = self.robot.px, self.robot.py
-        theta_rot = self._get_rotation_theta()
+        theta_rot = self._get_robot_rotation_theta()
         rel_x, rel_y = x - px, y - py
         rot_x, rot_y = rotate_coordinate(rel_x, rel_y, theta_rot)
         return rot_x, rot_y
 
-    def _transform_angle(self, theta):
-        theta_rot = self._get_rotation_theta()
+    def _transform_robot_angle(self, theta):
+        theta_rot = self._get_robot_rotation_theta()
         return theta - theta_rot
-    
-    def _transform_velocity(self, vx, vy):
-        theta_rot = self._get_rotation_theta()
+
+    def _transform_robot_velocity(self, vx, vy):
+        theta_rot = self._get_robot_rotation_theta()
         rot_vx, rot_vy = rotate_coordinate(vx, vy, theta_rot)
         return rot_vx, rot_vy
-    
-    def _get_rotation_theta(self):
+
+    def _get_robot_rotation_theta(self):
         dgx = self.robot.gx - self.robot.px
         dgy = self.robot.gy - self.robot.py
         return np.arctan2(dgy, dgx)
 
+    def _transform_human_local_coordinate(self, human, x, y):
+        """人の進行方向をX軸とする座標に変換する。原点は人の位置。
+
+        Args:
+            human ([type]): [description]
+            x ([type]): [description]
+            y ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
+        human_vx, human_vy = human.vx, human.vy
+        theta_rot = np.arctan2(human_vy, human_vx)
+        rel_x, rel_y = x-human.px, y-human.py
+        rot_x, rot_y = rotate_coordinate(rel_x, rel_y, theta_rot)
+        return rot_x, rot_y
+
     def _is_in_social_norm(self):
         # Social norm; right handed rule
-        local_robot_vx, local_robot_vy = self._transform_velocity(
+        # Yu Fan Chen, Michael Everett, Miao Liu, and Jonathan P. How. 2017. 
+        # Socially Aware Motion Planning with Deep Reinforcement Learning.
+        # In 2017 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS).
+        # https://doi.org/10.1109/IROS.2017.8202312.
+        local_robot_vx, local_robot_vy = self._transform_robot_velocity(
             self.robot.vx, self.robot.vy
         )
-        local_robot_px, local_robot_py = self._transform_coordinate(
+        local_robot_px, local_robot_py = self._transform_robot_coordinate(
             self.robot.px, self.robot.py
         )
-        local_robot_gx, local_robot_gy = self._transform_coordinate(
+        local_robot_gx, local_robot_gy = self._transform_robot_coordinate(
             self.robot.gx, self.robot.gy
         )
         dg = ((local_robot_gx - local_robot_px)**2 + (local_robot_gy - local_robot_py)**2)**.5
         v = (local_robot_vx**2 + local_robot_vy**2)**.5
         b_penalties = []
         for human in self.humans:
-            local_human_vx, local_human_vy = self._transform_velocity(
+            local_human_vx, local_human_vy = self._transform_robot_velocity(
                 human.vx, human.vy
             )
-            local_human_px, local_human_py = self._transform_coordinate(
+            local_human_px, local_human_py = self._transform_robot_coordinate(
                 human.px, human.py
             )
-            local_robot_theta = self._transform_angle(self.robot.theta)
+            local_robot_theta = self._transform_robot_angle(self.robot.theta)
             phi = np.arctan2(local_human_vy, local_human_vx)
             diff_phi = phi - local_robot_theta
             is_s_pass = all([
@@ -612,6 +647,18 @@ class CrowdSim(gym.Env):
             b_penalties.append(any([is_s_pass, is_s_outk, is_s_cross]))
         return any(b_penalties)
 
+    def _is_annoying(self):
+        b_annoyings = []
+        for human in self.humans:
+            # 1. transform human centric local coordination
+            robot_px, robot_py = self._transform_human_local_coordinate(
+                human, self.robot.px, self.robot.py
+            )
+            # 2. check if a robot is in the area where the human go to.
+            b_annoying = (0 < robot_px) and (robot_px < 3)
+            b_annoying &= (-1 < robot_py) and (robot_py < 1)
+            b_annoyings.append(b_annoying)
+        return any(b_annoyings)
 
     def robot_forth_human(self):
         """ robotがhumanの前を通過しているか

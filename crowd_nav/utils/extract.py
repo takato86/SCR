@@ -104,23 +104,25 @@ def main():
         # val_path = os.path.join(dir_name, "val_results.csv")
         # export(val_path, val_out_dict)
                       
-        test_pattern = r"TEST   in episode (?P<episode>\d+) has success rate: (?P<sr>[0-1].\d+), " \
-                      r"collision rate: (?P<cr>[0-1].\d+), nav time: (?P<time>\d+.\d+), " \
-                      r"total reward: (?P<reward>[-+]?\d+.\d+).*, go through in front of human: (?P<forth>\d+) / \d+"
-        test_episode = []
+        test_pattern = r"TEST\s+in episode (\d+) avg human time: (.*?) has success rate: ([0-1].\d+), " \
+                      r"collision rate: ([0-1].\d+), nav time: (\d+.\d+), " \
+                      r"total reward: ([-+]?\d+.\d+).*, go through in front of human: (\d+) / \d+"
+        test_episode, test_htime = [], []
         test_sr, test_cr = [], []
         test_time, test_reward = [], []
         test_forth = []
         for r in re.findall(test_pattern, log):
             test_episode.append(int(r[0]))
-            test_sr.append(float(r[1]))
-            test_cr.append(float(r[2]))
-            test_time.append(float(r[3]))
-            test_reward.append(float(r[4]))
-            test_forth.append(int(r[5]))
+            test_htime.append(float(r[1]))
+            test_sr.append(float(r[2]))
+            test_cr.append(float(r[3]))
+            test_time.append(float(r[4]))
+            test_reward.append(float(r[5]))
+            test_forth.append(int(r[6]))
 
         test_out_dict = {
             "episode": test_episode,
+            "avg_human_time": test_htime,
             "success_rate": test_sr,
             "collision_rate": test_cr,
             "nav_time": test_time,

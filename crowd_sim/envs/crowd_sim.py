@@ -533,20 +533,22 @@ class CrowdSim(gym.Env):
         elif dmin < self.discomfort_dist:
             # only penalize agent for getting too close if it's visible
             # adjust the reward based on FPS
-            # unit_v = (self.robot.vx**2 + self.robot.vy**2)**.5
+            unit_v = (self.robot.vx**2 + self.robot.vy**2)**.5
             # 1はmax_v? pref_v, 1-unit_distは最大値と現在値の差分。補正項かな。
-            # reward = (dmin - self.discomfort_dist) * self.discomfort_penalty_factor * self.time_step * (1 - unit_v)
-            reward = (dmin - self.discomfort_dist) * self.discomfort_penalty_factor
+            reward = (dmin - self.discomfort_dist) * self.discomfort_penalty_factor * self.time_step * (1 - unit_v)
+            # reward = (dmin - self.discomfort_dist) * self.discomfort_penalty_factor
             # self.discomfort_dist = 0.2, self.discomfort_penalty_factor=0.5で元論文と一致
             done = False
             info = Danger(dmin)
         elif is_violate_snorm:
-            reward = self.violation_penalty
+            unit_v = (self.robot.vx**2 + self.robot.vy**2)**.5
+            reward = self.violation_penalty * self.time_step * (1 - unit_v)
             done = False
             info = Violation()
         elif is_annoying:
+            unit_v = (self.robot.vx**2 + self.robot.vy**2)**.5
             assert self.use_annoying is True
-            reward = self.annoying_penalty
+            reward = self.annoying_penalty * self.time_step * (1 - unit_v)
             done = False
             info = Annoying()
         else:

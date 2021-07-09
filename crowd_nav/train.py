@@ -7,12 +7,15 @@ import shutil
 import torch
 import gym
 import git
-from crowd_sim.envs.utils.robot import Robot
+import numpy as np
+
+from crowd_sim.envs.utils.robot import Robot, ShapingRobot, SARobot
 from crowd_sim.envs.utils.human import Human
 from crowd_nav.utils.trainer import Trainer
 from crowd_nav.utils.memory import ReplayMemory
 from crowd_nav.utils.explorer import Explorer
 from crowd_nav.policy.policy_factory import policy_factory
+from crowd_sim.envs.utils.info import ReachGoal
 
 
 def main():
@@ -21,16 +24,23 @@ def main():
     parser.add_argument('--policy', type=str, default='scr')
     parser.add_argument('--policy_config', type=str, default='configs/policy.config')
     parser.add_argument('--train_config', type=str, default='configs/train.config')
+    parser.add_argument('--shaping_config', type=str, default='configs/shaping.config')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--weights', type=str)
     parser.add_argument('--resume', default=False, action='store_true')
-    parser.add_argument('--gpu', default=False, action='store_true')
+    parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--debug', default=False, action='store_true')
+    parser.add_argument('--shaping', default=None)
+    parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--y', action='store_true')
     args = parser.parse_args()
+
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
 
     # configure paths
     make_new_dir = True
-    if os.path.exists(args.output_dir):
+    if os.path.exists(args.output_dir) and not args.y:
         key = input('Output directory already exists! Overwrite the folder? (y/n)')
         if key == 'y' and not args.resume:
             shutil.rmtree(args.output_dir)
@@ -39,11 +49,16 @@ def main():
             args.env_config = os.path.join(args.output_dir, os.path.basename(args.env_config))
             args.policy_config = os.path.join(args.output_dir, os.path.basename(args.policy_config))
             args.train_config = os.path.join(args.output_dir, os.path.basename(args.train_config))
+            args.shaping_config = os.path.join(args.output_dir, os.path.basename(args.shaping_config))
+    elif os.path.exists(args.output_dir) and args.y:
+        shutil.rmtree(args.output_dir)
+
     if make_new_dir:
         os.makedirs(args.output_dir)
         shutil.copy(args.env_config, args.output_dir)
         shutil.copy(args.policy_config, args.output_dir)
         shutil.copy(args.train_config, args.output_dir)
+        shutil.copy(args.shaping_config, args.output_dir)
     log_file = os.path.join(args.output_dir, 'output.log')
     il_weight_file = os.path.join(args.output_dir, 'il_model.pth')
     rl_weight_file = os.path.join(args.output_dir, 'rl_model.pth')
@@ -57,11 +72,11 @@ def main():
                         format='%(asctime)s, %(levelname)s: %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
     repo = git.Repo(search_parent_directories=True)
     logging.info('Current git head hash code: %s'.format(repo.head.object.hexsha))
-    device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
+    device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
     logging.info('Using device: %s', device)
 
     # configure policy
-    policy = policy_factory[args.policy]()
+    policy = policy_factory[args.policy](seed=args.seed)
     if not policy.trainable:
         parser.error('Policy has to be trainable')
     if args.policy_config is None:
@@ -75,7 +90,41 @@ def main():
     env = gym.make('CrowdSim-v0')
     env.configure(args.env_config)
 
-    robot = Robot()
+    if args.shaping is None:
+        logging.info("Non Shaping Agent is used")
+        if args.policy == 'sa_cadrl':
+            robot = SARobot()
+        else:
+            robot = Robot()
+    else:
+        logging.info(f"{args.shaping} Shaping Agent is used")
+        shaping_config = configparser.ConfigParser()
+        shaping_config.read(args.shaping_config)
+        learn_dict = {}
+        for key, value in shaping_config['learn'].items():
+            learn_dict[key] = float(value)
+        aggr_params = dict(shaping_config['aggr_params'].items())
+        aggr_params["n_obs"] = int(aggr_params["n_obs"])
+        aggr_params["_range"] = {
+            "angle": float(aggr_params["angle_range"]),
+            "dist": float(aggr_params["dist_range"])
+        }
+        params_dict = dict(shaping_config['params'].items())
+        params_dict['params'] = aggr_params
+
+        params_dict['eta'] = float(params_dict['eta'])
+        params_dict['rho'] = float(params_dict['rho'])
+
+        def is_success(done, info):
+            return type(info) is ReachGoal
+        
+        shaping_args = {
+            **learn_dict,
+            "env": env,
+            "params": params_dict,
+            "is_success": is_success
+        }
+        robot = ShapingRobot(args.shaping, **shaping_args)
     robot.configure(args.env_config, 'robot')
     env.set_robot(robot)
 
@@ -83,7 +132,6 @@ def main():
     for human in humans:
         human.configure(args.env_config, 'humans')
     env.set_humans(humans)
-
     # read training parameters
     if args.train_config is None:
         parser.error('Train config has to be specified for a trainable network')
@@ -147,7 +195,8 @@ def main():
     # fill the memory pool with some RL experience
     if args.resume:
         robot.policy.set_epsilon(epsilon_end)
-        explorer.run_episode('val', video_file=f'data/output/video_e{-1}.mp4')
+        video_file = os.path.join(args.output_dir, f"video_e{-1}.mp4")
+        explorer.run_episode('val', video_file=video_file)
         explorer.run_k_episodes(100, 'train', update_memory=True, episode=0)
         logging.info('Experience set size: %d/%d', len(memory), memory.capacity)
     episode = 0
@@ -167,7 +216,8 @@ def main():
 
         # evaluate the model
         if episode % evaluation_interval == 0:
-            explorer.run_episode('val', video_file=f'data/output/video_e{episode}.mp4')
+            video_file = os.path.join(args.output_dir, f"video_e{episode}.mp4")
+            explorer.run_episode('val', video_file=video_file)
 
         episode += 1
 

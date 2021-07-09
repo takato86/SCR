@@ -5,8 +5,8 @@ from crowd_nav.policy.cadrl import CADRL
 from crowd_nav.utils.transformations import build_occupancy_map, propagate
 
 class MultiHumanRL(CADRL):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, seed=None):
+        super().__init__(seed=seed)
 
     def predict(self, state):
         """
@@ -25,9 +25,9 @@ class MultiHumanRL(CADRL):
             self.build_action_space(state.self_state.v_pref)
 
         occupancy_maps = None
-        probability = np.random.random()
+        probability = self.rs.random()
         if self.phase == 'train' and probability < self.epsilon:
-            max_action = self.action_space[np.random.choice(len(self.action_space))]
+            max_action = self.action_space[self.rs.choice(len(self.action_space))]
         else:
             self.action_values = list()
             max_value = float('-inf')

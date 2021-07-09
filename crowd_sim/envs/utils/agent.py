@@ -41,6 +41,18 @@ class Agent(object):
         self.theta = None
         self.time_step = None
 
+    def start(self, ob):
+        pass
+
+    def shape(self, ob, reward, done, info):
+        return 0
+
+    def print4analysis(self):
+        pass
+
+    def get_achieve_subgoals(self):
+        return 0
+
     def configure(self, file, section):
         """
         config is a parser in this case
@@ -52,7 +64,6 @@ class Agent(object):
         self.policy = policy_factory[config.policy]()
         self.sensor = config.sensor
         self.kinematics = self.policy.kinematics if self.policy is not None else None
-
 
     def print_info(self):
         logging.info('Agent is {} and has {} kinematic constraint'.format(
@@ -162,4 +173,3 @@ class Agent(object):
 
     def reached_destination(self):
         return norm(np.array(self.get_position()) - np.array(self.get_goal_position())) < self.radius
-

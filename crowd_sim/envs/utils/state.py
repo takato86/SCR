@@ -1,3 +1,6 @@
+import numpy as np 
+
+
 class State(object):
     pass
 
@@ -29,7 +32,6 @@ class FullState(State):
         return all([self.px == other.px, self.py == other.py, self.vx == other.vx, self.vy == other.vy, self.radius == other.radius])
 
 
-
 class ObservableState(State):
     def __init__(self, px, py, vx, vy, radius):
         self.px = px
@@ -49,6 +51,57 @@ class ObservableState(State):
 
     def __eq__(self, other):
         return all([self.px == other.px, self.py == other.py, self.vx == other.vx, self.vy == other.vy, self.radius == other.radius])
+
+    def is_available(self):
+        return self.px is not None and self.py is not None and self.vx is not None and self.vy is not None and self.radius is not None
+
+
+class SAObservableState(ObservableState):
+    def __init__(self, px, py, vx, vy, radius, da, phi):
+        self.px = px
+        self.py = py
+        self.vx = vx
+        self.vy = vy
+        self.radius = radius
+        self.da = da
+        self.phi = phi
+
+        self.position = (self.px, self.py)
+        self.velocity = (self.vx, self.vy)
+
+    def __add__(self, other):
+        return other + (
+            self.px, self.py, self.vx, self.vy, self.radius, self.da, self.phi
+            )
+
+    def __str__(self):
+        return ' '.join(
+            [
+                str(x)
+                for x in [
+                    self.px, self.py, self.vx, self.vy, self.radius, self.da,
+                    self.phi
+                ]
+            ]
+        )
+
+    def __eq__(self, other):
+        return all(
+            [
+                self.px == other.px, self.py == other.py, self.vx == other.vx,
+                self.vy == other.vy, self.radius == other.radius,
+                self.da == other.da, self.phi == other.phi
+            ]
+        )
+
+    def is_available(self):
+        return all(
+            [
+                self.px is not None, self.py is not None, self.vx is not None,
+                self.vy is not None, self.radius is not None,
+                self.da is not None, self.phi is not None
+            ]
+        )
 
 
 class JointState(object):

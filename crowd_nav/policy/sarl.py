@@ -66,8 +66,8 @@ class ValueNetwork(nn.Module):
 
 
 class SARL(MultiHumanRL):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, seed=None):
+        super().__init__(seed=seed)
         self.name = 'SARL'
 
     def configure(self, config):

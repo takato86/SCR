@@ -49,3 +49,21 @@ class Nothing(Info):
 
     def __str__(self):
         return ''
+
+
+class Violation(Info):
+    def __init__(self):
+        super(Info, self).__init__()
+        pass
+
+    def __str__(self):
+        return 'Violate Social Norm'
+
+
+class Annoying(Info):
+    def __init__(self):
+        super(Info, self).__init__()
+        pass
+
+    def __str__(self):
+        return 'Annoying a human'

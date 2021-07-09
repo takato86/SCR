@@ -33,7 +33,7 @@ class ValueNetwork(nn.Module):
 
 
 class CADRL(Policy):
-    def __init__(self):
+    def __init__(self, seed=None):
         super().__init__()
         self.name = 'CADRL'
         self.trainable = True
@@ -59,6 +59,7 @@ class CADRL(Policy):
 
         self.optimizer = None
         self.criterion = None
+        self.rs = np.random.RandomState(seed)
 
     def configure(self, config):
         self.set_common_parameters(config)
@@ -119,7 +120,6 @@ class CADRL(Policy):
                 action_space.append(ActionXY(speed * np.cos(rotation), speed * np.sin(rotation)))
             else:
                 action_space.append(ActionRot(speed, rotation))
-
         self.speeds = speeds
         self.rotations = rotations
         self.action_space = action_space
@@ -142,9 +142,9 @@ class CADRL(Policy):
         if self.action_space is None:
             self.build_action_space(state.self_state.v_pref)
 
-        probability = np.random.random()
+        probability = self.rs.random()
         if self.phase == 'train' and probability < self.epsilon:
-            max_action = self.action_space[np.random.choice(len(self.action_space))]
+            max_action = self.action_space[self.rs.choice(len(self.action_space))]
         else:
             self.action_values = list()
             max_min_value = float('-inf')

@@ -66,8 +66,8 @@ class ValueNetwork2(nn.Module):
 
 
 class LstmRL(MultiHumanRL):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, seed=None):
+        super().__init__(seed=seed)
         self.name = 'LSTM-RL'
         self.with_interaction_module = None
         self.interaction_module_dims = None

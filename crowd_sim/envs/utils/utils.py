@@ -24,3 +24,16 @@ def point_to_segment_dist(x1, y1, x2, y2, x3, y3):
     y = y1 + u * py
 
     return np.linalg.norm((x - x3, y-y3))
+
+
+def rotate_coordinate(x, y, theta):
+    """rotate coordinates and return the points in the rotated one.
+
+    Args:
+        x ([float]): [description]
+        y ([float]): [description]
+        theta ([float]): [description]
+    """
+    rot_x = x * np.cos(theta) + y * np.sin(theta)
+    rot_y = -x * np.sin(theta) + y * np.cos(theta)
+    return rot_x, rot_y

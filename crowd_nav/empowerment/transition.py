@@ -7,9 +7,15 @@ class Transition(nn.Module):
         super(Transition, self).__init__()
         self.nb_states = nb_states
         self.nb_actions = nb_actions
-        self.fc1 = nn.Linear(nb_actions, hidden1)
-        self.fc2 = nn.Linear(nb_states, hidden2)
-        self.fc3 = nn.Linear(hidden1 + hidden2, nb_states)
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        if device == "cpu":
+            self.fc1 = nn.Linear(nb_actions, hidden1)
+            self.fc2 = nn.Linear(nb_states, hidden2)
+            self.fc3 = nn.Linear(hidden1 + hidden2, nb_states)
+        else:
+            self.fc1 = nn.Linear(nb_actions, hidden1).cuda()
+            self.fc2 = nn.Linear(nb_states, hidden2).cuda()
+            self.fc3 = nn.Linear(hidden1 + hidden2, nb_states).cuda()
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
 

@@ -49,12 +49,12 @@ def main():
     # configure logging and device
     logging.basicConfig(level=logging.INFO, format='%(asctime)s, %(levelname)s: %(message)s',
                         datefmt="%Y-%m-%d %H:%M:%S")
-    device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logging.info('Using device: %s', device)
 
     # configure policy
     policy = policy_factory[args.policy]()
-    policy_config = configparser.RawConfigParser()
+    policy_config = configparser.ConfigParser()
     policy_config.read(policy_config_file)
     policy.configure(policy_config)
     if policy.trainable:
@@ -64,16 +64,16 @@ def main():
 
     # configure environment
     env = gym.make('CrowdSim-v0')
-    env.configure(args.env_config)
+    env.configure(env_config_file)
 
     robot = Robot()
-    robot.configure(args.env_config, 'robot')
+    robot.configure(env_config_file, 'robot')
     robot.set_policy(policy)
     env.set_robot(robot)
 
     humans = [Human() for _ in range(env.human_num)]
     for human in humans:
-        human.configure(args.env_config, 'humans')
+        human.configure(env_config_file, 'humans')
     env.set_humans(humans)
 
     if args.square:

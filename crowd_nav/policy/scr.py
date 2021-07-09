@@ -42,8 +42,8 @@ class EmpowermentNetwork(nn.Module):
 
 class SCR(SARL):
     max_grad_norm = .5
-    def __init__(self):
-        super().__init__()
+    def __init__(self, seed=None):
+        super().__init__(seed=seed)
         self.name = 'SCR'
 
     def configure(self, config):
@@ -116,7 +116,13 @@ class SCR(SARL):
                 human_oms_next[i, j, :] = build_occupancy_map_torch(human_next, others, self.cell_num, self.cell_size, self.om_channel_size)
 
         self.empowerment.optimizer_transition.zero_grad()
-        error = self.criterion(prediction, human_oms_next.view(-1, self.occupancy_map_dim))
+        # import pdb; pdb.set_trace()
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        if device == "cpu":
+            next_occupancy_map_dim = human_oms_next.view(-1, self.occupancy_map_dim)
+        else:
+            next_occupancy_map_dim = human_oms_next.view(-1, self.occupancy_map_dim).cuda()
+        error = self.criterion(prediction, next_occupancy_map_dim)
         error.backward()
         nn.utils.clip_grad_norm_(self.empowerment.transition.parameters(), self.max_grad_norm)
         self.empowerment.optimizer_transition.step()

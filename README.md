@@ -96,3 +96,9 @@ python acceptance_test_interaction.py --policy scr
 <img src="https://user-images.githubusercontent.com/24938569/80857758-add85980-8c54-11ea-9557-5a1c35536118.gif" width="400" />|
 
 
+---
+
+## How to do
+1. Edit configs and train.sh
+2. `bash train.sh`
+3. `python utils/extract.py hogehoge/output.log` --label=hogehoge
